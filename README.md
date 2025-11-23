@@ -6,7 +6,9 @@
 [![Python](https://img.shields.io/badge/Python-3.10+-yellow.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-这是一个基于 [Telethon](https://docs.telethon.dev/) 开发的高级 Telegram 消息转发系统。它结合了 **Userbot** (用户客户端) 和 **Bot API** (机器人客户端) 的优势，能够从任何您已加入的频道/群组（包括受限频道）监听消息，并以**“无痕模式”**（去除“转发自 xxx”标签）转发到您的目标频道。
+* 项目来源：https://github.com/ikun245/Telegram-toujibot
+* 通过AI修复原版没有自动转发的功能并且保留原版命令功能，实现Docker化一键部署。
+* 这是一个基于 [Telethon](https://docs.telethon.dev/) 开发的高级 Telegram 消息转发系统。它结合了 **Userbot** (用户客户端) 和 **Bot API** (机器人客户端) 的优势，能够从任何您已加入的频道/群组（包括受限频道）监听消息，并以**“无痕模式”**（去除“转发自 xxx”标签）转发到您的目标频道。
 
 ## ✨ 核心功能
 
@@ -35,25 +37,13 @@
     * **功能**：使用机器人 Token 登录，接收来自 Userbot 的私聊消息。
     * **处理**：缓存相册媒体、过滤掉所有以 `/` 开头的命令和以 `🤖` 开头的系统回复，最后将清洗后的内容发送到最终目标频道。
 
-##📂 **项目结构**
-.
-├── bot_relay.py        # 🚀 发布端：处理缓存、过滤命令、无痕发送
-├── telegram_bot.py     # 🎧 监听端：处理监听、转发给机器人、响应命令
-├── config.json         # ⚙️ 配置文件：定义监听映射
-├── docker-compose.yml  # 🐳 Docker 编排文件
-├── Dockerfile          # 📄 镜像构建文件
-├── requirements.txt    # 🐍 Python 依赖
-└── anon.session        # 🔐 (自动生成) Userbot 登录凭证
+## 🎮 使用命令
+
+* /add_listen,添加监听任务,/add_listen -100123456 @mybot
+* /remove_listen,移除监听任务,/remove_listen -100123456
+* /list_listen,查看当前监听列表,/list_listen
+* /join,Userbot 加入频道,/join https://t.me/xxchannel
+* /leave,Userbot 退出频道,/leave @xxchannel
+
 ## 🚀 部署指南
-
-### 1. 准备工作
-* 一台安装了 Linux 的服务器 (VPS)。
-* 已安装 [Docker](https://docs.docker.com/get-docker/) 和 [Docker Compose](https://docs.docker.com/compose/install/)。
-* **Telegram API ID & Hash**：登录 [my.telegram.org](https://my.telegram.org) 获取。
-* **Bot Token**：联系 [@BotFather](https://t.me/BotFather) 创建新机器人。
-* **目标频道**：创建频道并将您的机器人设为**管理员**。
-
-### 2. 获取代码
-```bash
-git clone [https://github.com/您的用户名/您的仓库名.git](https://github.com/您的用户名/您的仓库名.git)
-cd 您的仓库名
+暂时还没写比较懒，等我博客更新详细的部署教程会更新到目录。
