@@ -1,11 +1,11 @@
 {
-    "api_id": .......,
-    "api_hash": "........",
-    "master_account_id": ..........,
+    "api_id": 官网申请,
+    "api_hash": "官网申请",
+    "master_account_id": 管理账户ID,
     "bot_mappings": [
         {
-            "source_chat": ...........,
-            "target_bot": "........."
+            "source_chat": 源频道ID,
+            "target_bot": "你的机器人@账户"
         }
     ],
     "proxy": null
