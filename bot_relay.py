@@ -3,9 +3,9 @@ from telethon import TelegramClient, events
 import asyncio
 
 # === 配置区域 ===
-API_ID = 24072647
-API_HASH = '74326637e71d227a805afb5dfb40d8f9'
-BOT_TOKEN = '8166413339:AAEXgXl-8b28CPAK6m2-mbvlfIoVNGjmX0g'
+API_ID = telegram官网申请
+API_HASH = 'telegram官网申请'
+BOT_TOKEN = '你的BOT_TOKEN'
 DEST_CHANNELS = [-1003344631537]
 
 # === 缓存 ===
