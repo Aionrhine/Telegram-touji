@@ -29,7 +29,7 @@
 
 ## 🚀 一键安装命令
 
-> 适用于 Linux / Debian / Ubuntu。会自动检测 Docker 与 Compose，然后拉起容器。
+> 适用于 Linux / Debian / Ubuntu。脚本会自动检测 Docker/Compose，并在安装过程中交互式询问配置参数后启动容器。
 
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/ikun245/Telegram-toujibot/main/scripts/install.sh)"
@@ -39,6 +39,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/ikun245/Telegram-toujibo
 
 ```bash
 bash scripts/install.sh
+# 按提示输入 api_id/api_hash/master_account_id/source_chat/target_bot/bot_token/dest_channels
 ```
 
 ## 🎮 管理命令
@@ -55,3 +56,5 @@ bash scripts/install.sh
 2. 为关键路径（配置加载、映射构建、消息发送）补充结构化日志（如 JSON logging）。
 3. 给命令处理和配置读写增加最小单元测试，提高回归稳定性。
 4. 将部署脚本发布到稳定地址（如你自己的仓库），避免引用上游缺失脚本。
+5. 将配置改为环境变量（或 .env）并支持热重载，减少直接改 JSON 的运维风险。
+6. 给消息转发链路增加限流、重试与死信记录，避免高峰期丢消息。
