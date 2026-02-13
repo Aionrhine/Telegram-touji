@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_URL="${REPO_URL:-https://github.com/ikun245/Telegram-toujibot.git}"
+REPO_URL="${REPO_URL:-https://github.com/ikun245/Telegram-touji.git}"
 PROJECT_DIR="${PROJECT_DIR:-Telegram-touji}"
 
 if ! command -v docker >/dev/null 2>&1; then
@@ -25,10 +25,6 @@ fi
 
 cd "$PROJECT_DIR"
 
-if [ ! -f config.json ] && [ -f config.example.json ]; then
-  cp config.example.json config.json
-fi
-
 if [ -f config.json ]; then
   read -r -p "[INFO] 检测到 config.json，是否重新生成并覆盖? [y/N]: " REBUILD_CONFIG
   REBUILD_CONFIG="${REBUILD_CONFIG:-N}"
@@ -37,35 +33,27 @@ else
 fi
 
 if [[ "$REBUILD_CONFIG" =~ ^[Yy]$ ]]; then
-  echo "[STEP] 请输入配置参数（直接回车可使用默认示例值）"
-
+  echo "[STEP] 请输入配置参数（回车使用默认值）"
   read -r -p "api_id (默认: 12345678): " API_ID
   API_ID="${API_ID:-12345678}"
-
   read -r -p "api_hash (默认: your_api_hash): " API_HASH
   API_HASH="${API_HASH:-your_api_hash}"
-
   read -r -p "master_account_id (默认: 123456789): " MASTER_ACCOUNT_ID
   MASTER_ACCOUNT_ID="${MASTER_ACCOUNT_ID:-123456789}"
-
-  read -r -p "source_chat (源频道ID, 默认: -1001234567890): " SOURCE_CHAT
+  read -r -p "source_chat (默认: -1001234567890): " SOURCE_CHAT
   SOURCE_CHAT="${SOURCE_CHAT:--1001234567890}"
-
-  read -r -p "target_bot (中间机器人 @用户名, 默认: @your_middle_bot): " TARGET_BOT
+  read -r -p "target_bot (默认: @your_middle_bot): " TARGET_BOT
   TARGET_BOT="${TARGET_BOT:-@your_middle_bot}"
-
   read -r -p "relay.bot_token (默认: 123456:ABCDEF_your_bot_token): " BOT_TOKEN
   BOT_TOKEN="${BOT_TOKEN:-123456:ABCDEF_your_bot_token}"
-
-  read -r -p "dest_channels (最终频道ID，多个逗号分隔，默认: -1009876543210): " DEST_CHANNELS_RAW
+  read -r -p "dest_channels (逗号分隔，默认: -1009876543210): " DEST_CHANNELS_RAW
   DEST_CHANNELS_RAW="${DEST_CHANNELS_RAW:--1009876543210}"
 
   DEST_CHANNELS_JSON="$(python - <<'PY' "$DEST_CHANNELS_RAW"
 import sys
-raw = sys.argv[1]
-arr = [x.strip() for x in raw.split(',') if x.strip()]
+arr=[x.strip() for x in sys.argv[1].split(',') if x.strip()]
 if not arr:
-    arr = ['-1009876543210']
+    arr=['-1009876543210']
 print('[' + ', '.join(arr) + ']')
 PY
 )"
@@ -91,9 +79,19 @@ PY
 }
 EOF
 
-  echo "[OK] 已生成 config.json"
+  cat > .env <<EOF
+API_ID=${API_ID}
+API_HASH=${API_HASH}
+MASTER_ACCOUNT_ID=${MASTER_ACCOUNT_ID}
+RELAY_API_ID=${API_ID}
+RELAY_API_HASH=${API_HASH}
+RELAY_BOT_TOKEN=${BOT_TOKEN}
+RELAY_DEST_CHANNELS=${DEST_CHANNELS_RAW}
+EOF
+
+  echo "[OK] 已生成 config.json 与 .env"
 else
-  echo "[INFO] 保留现有 config.json"
+  echo "[INFO] 保留现有配置"
 fi
 
 $COMPOSE_CMD up -d --build

@@ -1,60 +1,37 @@
 # Telegram Stealth Relay Bot (Dockerized)
 
-**Telegram 消息无痕搬运/偷鸡机器人**
-
-[![Docker](https://img.shields.io/badge/Docker-Enabled-blue.svg)](https://www.docker.com/)
-[![Python](https://img.shields.io/badge/Python-3.10+-yellow.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-
-* 项目来源：https://github.com/ikun245/Telegram-toujibot
-* 通过 AI 修复原版没有自动转发的功能并且保留原版命令功能，实现 Docker 化部署。
-* 基于 [Telethon](https://docs.telethon.dev/)：Userbot 负责监听，RelayBot 负责无痕发布。
-
-## ✨ 核心功能
-
-* **全能监听 (Userbot)**：使用真实用户账号监听公开/私有频道消息。
-* **无痕转发 (Stealth Mode)**：由 RelayBot 复制重发，去除 `Forwarded from` 标签。
-* **相册聚合转发**：自动缓存 grouped_id，避免相册拆散刷屏。
-* **命令与系统消息过滤**：拦截 `/命令` 和 `🤖` 系统回执，保证目标频道干净。
-* **多目标分发**：可配置多个目标频道。
-
-## 🔧 配置说明
-
-编辑 `config.json`（可参考 `config.example.json`）：
-
-* `api_id` / `api_hash`：Telegram 应用凭据（Userbot）。
-* `master_account_id`：可发管理命令的账号 ID。
-* `bot_mappings`：源频道 -> 中间机器人映射。
-* `relay`：RelayBot 配置（`api_id`、`api_hash`、`bot_token`、`dest_channels`）。
-
-## 🚀 一键安装命令
-
-> 适用于 Linux / Debian / Ubuntu。脚本会自动检测 Docker/Compose，并在安装过程中交互式询问配置参数后启动容器。
+## 🚀 一键安装（交互填写配置）
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/ikun245/Telegram-toujibot/main/scripts/install.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/ikun245/Telegram-touji/main/scripts/install.sh)"
 ```
 
-> 如果你已经在本仓库目录下，也可以直接执行：
+脚本会交互询问并生成：
+- `config.json`
+- `.env`
+
+并自动执行 `docker compose up -d --build`。
+
+## 🔧 当前已完成的优化
+
+1. **统一配置模块**：`telegram_bot.py` 与 `bot_relay.py` 都改为通过 `common_config.py` 读取配置，减少重复逻辑。
+2. **结构化日志**：通过 `structured_logger.py` 输出 JSON 日志，覆盖配置加载、映射构建、消息发送关键路径。
+3. **限流 + 重试 + 死信**：通过 `delivery.py` 为转发链路加入限流、重试、DLQ（`logs/*.jsonl`）。
+4. **.env 支持 + 热重载**：支持 `.env` 覆盖配置；运行时检测 `config.json` 变更并热重载。
+5. **最小单元测试**：新增配置解析与命令解析测试。
+
+## 📁 关键文件
+
+- `common_config.py`：统一配置读取/保存、`.env` 加载、环境变量覆盖。
+- `structured_logger.py`：JSON logging。
+- `delivery.py`：限流、重试、DLQ。
+- `command_utils.py`：命令解析。
+- `tests/`：最小单元测试。
+
+## 🧪 本地测试
 
 ```bash
-bash scripts/install.sh
-# 按提示输入 api_id/api_hash/master_account_id/source_chat/target_bot/bot_token/dest_channels
+python -m unittest discover -s tests -v
+python -m py_compile telegram_bot.py bot_relay.py common_config.py structured_logger.py delivery.py command_utils.py
+bash -n scripts/install.sh
 ```
-
-## 🎮 管理命令
-
-* `/add_listen <源ID> <@目标机器人>`
-* `/remove_listen <源ID>`
-* `/list_listen`
-* `/join <频道链接或用户名>`
-* `/leave <频道链接或用户名>`
-
-## 🧠 建议优化/重构方向
-
-1. 将 `telegram_bot.py` 与 `bot_relay.py` 的配置读取统一为同一个模块，减少重复逻辑。
-2. 为关键路径（配置加载、映射构建、消息发送）补充结构化日志（如 JSON logging）。
-3. 给命令处理和配置读写增加最小单元测试，提高回归稳定性。
-4. 将部署脚本发布到稳定地址（如你自己的仓库），避免引用上游缺失脚本。
-5. 将配置改为环境变量（或 .env）并支持热重载，减少直接改 JSON 的运维风险。
-6. 给消息转发链路增加限流、重试与死信记录，避免高峰期丢消息。

@@ -1,37 +1,30 @@
 import asyncio
-import json
-import os
-from typing import Any
+import logging
 
 from telethon import TelegramClient, events
 
-CONFIG_PATH = os.getenv("CONFIG_PATH", "config.json")
+from common_config import ConfigManager, load_relay_settings
+from delivery import AsyncRateLimiter, with_retry, write_dlq
+from structured_logger import get_logger, log_event
 
-# === 缓存 ===
-media_group_cache: dict[int, dict[str, Any]] = {}
+logger = get_logger("relaybot")
+config_manager = ConfigManager()
+settings = load_relay_settings(config_manager)
+
+media_group_cache = {}
 media_group_lock = asyncio.Lock()
+rate_limiter = AsyncRateLimiter(rate_per_sec=8)
+DLQ_PATH = "logs/relay_dlq.jsonl"
+
+client = TelegramClient("bot_session", settings["api_id"], settings["api_hash"]).start(bot_token=settings["bot_token"])
 
 
-def load_relay_config() -> tuple[int, str, str, list[int]]:
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        config = json.load(f)
-
-    relay = config.get("relay", {})
-    api_id = int(relay.get("api_id", config.get("api_id", 0)))
-    api_hash = relay.get("api_hash", config.get("api_hash", ""))
-    bot_token = relay.get("bot_token", "")
-    dest_channels = relay.get("dest_channels", [])
-
-    if not api_id or not api_hash or not bot_token or not dest_channels:
-        raise ValueError(
-            "Relay 配置缺失。请在 config.json 的 relay 字段中设置 api_id/api_hash/bot_token/dest_channels。"
-        )
-
-    return api_id, api_hash, bot_token, [int(cid) for cid in dest_channels]
-
-
-API_ID, API_HASH, BOT_TOKEN, DEST_CHANNELS = load_relay_config()
-client = TelegramClient("bot_session", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+def current_dest_channels() -> list[int]:
+    global settings
+    if config_manager.reload_if_changed():
+        settings = load_relay_settings(config_manager)
+        log_event(logger, logging.INFO, "config_hot_reloaded", dest_channels=settings["dest_channels"])
+    return settings["dest_channels"]
 
 
 @client.on(events.NewMessage(incoming=True, func=lambda e: e.is_private))
@@ -41,32 +34,24 @@ async def handler(event):
         return
 
     stripped_text = (event.raw_text or "").strip()
-
-    # 1) 拦截命令
     if stripped_text.startswith("/"):
-        print(f"🛑 拦截命令: {stripped_text}")
+        log_event(logger, logging.INFO, "command_blocked", text=stripped_text)
         return
-
-    # 2) 拦截 Userbot 系统回复
     if stripped_text.startswith("🤖"):
-        print(f"🛑 拦截系统回复: {stripped_text}")
+        log_event(logger, logging.INFO, "system_reply_blocked", text=stripped_text)
         return
 
-    # 3) 转发逻辑
     if event.message.grouped_id:
         async with media_group_lock:
             gid = event.message.grouped_id
             if gid not in media_group_cache:
                 media_group_cache[gid] = {"messages": [], "task": None}
             media_group_cache[gid]["messages"].append(event.message)
-
-            old_task = media_group_cache[gid]["task"]
-            if old_task:
-                old_task.cancel()
+            if media_group_cache[gid]["task"]:
+                media_group_cache[gid]["task"].cancel()
             media_group_cache[gid]["task"] = asyncio.create_task(process_media_group(gid))
-        print(f"📥 缓存相册: {gid}")
+        log_event(logger, logging.INFO, "album_cached", group_id=event.message.grouped_id)
     else:
-        print("📤 转发单条消息...")
         await send_copy(event.message)
 
 
@@ -79,32 +64,46 @@ async def process_media_group(gid: int):
             msgs = media_group_cache[gid]["messages"]
             del media_group_cache[gid]
 
-        if not msgs:
-            return
         msgs.sort(key=lambda x: x.id)
         media = [m.media for m in msgs]
         caption = next((m.text for m in msgs if m.text), None)
 
-        for cid in DEST_CHANNELS:
+        for cid in current_dest_channels():
+            await rate_limiter.wait()
             try:
-                await client.send_message(cid, message=caption, file=media)
-                print(f"✅ 相册已发到 {cid}")
-            except Exception as exc:
-                print(f"❌ 相册发送失败 {cid}: {exc}")
+                await with_retry(
+                    lambda: client.send_message(cid, message=caption, file=media),
+                    retries=3,
+                    base_delay=1,
+                    logger=logger,
+                    action="send_album",
+                )
+                log_event(logger, logging.INFO, "album_sent", channel_id=cid, group_id=gid)
+            except Exception as exc:  # noqa: BLE001
+                payload = {"channel_id": cid, "group_id": gid, "error": str(exc)}
+                write_dlq(DLQ_PATH, payload)
+                log_event(logger, logging.ERROR, "album_send_failed", **payload)
     except asyncio.CancelledError:
-        pass
-    except Exception as exc:
-        print(f"❌ 处理相册异常: {exc}")
+        return
 
 
 async def send_copy(msg):
-    for cid in DEST_CHANNELS:
+    for cid in current_dest_channels():
+        await rate_limiter.wait()
         try:
-            await client.send_message(cid, message=msg, file=msg.media)
-            print(f"✅ 消息已发到 {cid}")
-        except Exception as exc:
-            print(f"❌ 发送失败 {cid}: {exc}")
+            await with_retry(
+                lambda: client.send_message(cid, message=msg, file=msg.media),
+                retries=3,
+                base_delay=1,
+                logger=logger,
+                action="send_message",
+            )
+            log_event(logger, logging.INFO, "message_sent", channel_id=cid, message_id=msg.id)
+        except Exception as exc:  # noqa: BLE001
+            payload = {"channel_id": cid, "message_id": msg.id, "error": str(exc)}
+            write_dlq(DLQ_PATH, payload)
+            log_event(logger, logging.ERROR, "message_send_failed", **payload)
 
 
-print("🚀 RelayBot 已启动...")
+log_event(logger, logging.INFO, "relaybot_started", dest_channels=settings["dest_channels"])
 client.run_until_disconnected()
